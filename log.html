@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Log filter</title>
+    <style type="text/css">
+      body {
+        display: flex;
+        padding: 0;
+        margin: 0;
+      }
+      aside {
+        flex: 1 1 20%;
+        background-color: #ddd;
+        height: 100vh;
+      }
+      #search-wrapper {
+        padding: 10px;
+      }
+      #file-button {
+        width: 100%;
+      }
+      #file-hide {
+        display: none;
+      }
+      #search-text-wrapper {
+        width: 100%;
+      }
+      #search-text {
+        width: calc(100% - 8px);
+      }
+      #search-list-wrapper {
+        overflow-y: auto;
+      }
+      ul#search-list {
+        padding: 0 10px;
+        margin: 0;
+        position: relative;
+      }
+      ul#search-list > li {
+        overflow: hidden;
+        vertical-align: top;
+        text-overflow: ellipsis;
+        word-break: break-all;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 3;
+        cursor: pointer;
+      }
+      span.list-idx {
+        border-radius: 4px;
+        background-color: red;
+        color: #fff;
+        padding: 0 6px;
+        margin-right: 10px;
+      }
+
+      ul#search-list > li:hover {
+        background-color: #888;
+        color: #fff;
+      }
+
+      main {
+        flex: 1 1 80%;
+        background-color: #eee;
+      }
+
+      /* scrollbar */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background-color: #f5f5f5;
+      }
+      ::-webkit-scrollbar-thumb {
+        background-color: #888888c0;
+        border-radius: 3px;
+      }
+    </style>
+
+    <script type="text/javascript">
+      const byId = (id) => {
+        return document.getElementById(id);
+      };
+
+      document.addEventListener("DOMContentLoaded", () => {
+        let log = [];
+        const setList = (search = "") => {
+          const filtered = log
+            .map((el, elIdx) => {
+              return { desc: el, idx: elIdx };
+            })
+            .filter((el) => el.desc.indexOf(search) > -1);
+
+          const wrapperHeight = byId("aside").offsetHeight;
+          const searchHeight = byId("search-wrapper").offsetHeight;
+          const ITEM_HEIGHT = 90;
+
+          byId("search-list-wrapper").style.maxHeight = `${
+            wrapperHeight - searchHeight
+          }px`;
+          byId("search-list").style.height = `${
+            ITEM_HEIGHT * filtered.length + 1
+          }px`;
+          const top = byId("search-list-wrapper").scrollTop;
+
+          const items = [];
+          for (
+            let n = Math.floor(top / ITEM_HEIGHT);
+            n <= Math.floor((top + wrapperHeight - searchHeight) / ITEM_HEIGHT);
+            n++
+          ) {
+            if (filtered[n]) {
+              items.push({ ...filtered[n], row: n });
+            }
+          }
+
+          const results = items.map((el) => {
+            const li = document.createElement("li");
+            const content =
+              search === ""
+                ? el.desc
+                : el.desc.split(search).join(`<mark>${search}</mark>`);
+
+            const contentHTML = `<div style="padding: 10px;"><span class="list-idx">${el.idx}</span><span>${content}<span></div>`;
+            li.innerHTML = contentHTML;
+            li.style.cssText = `
+              position: absolute;
+              top: ${el.row * ITEM_HEIGHT}px;
+              left: 0;
+              width: 100%;
+              height: ${ITEM_HEIGHT}px;
+              padding: 0;
+              border-bottom: 1px solid #333;
+            `;
+            li.onclick = () => {
+              byId("main").innerHTML = contentHTML;
+            };
+            return li;
+          });
+
+          byId("search-list").replaceChildren(...results);
+        };
+
+        window.addEventListener("resize", () => {
+          const text = byId("search-text").value;
+          setList(text);
+        });
+
+        byId("file-button").addEventListener("click", () => {
+          byId("file-hide").click();
+        });
+
+        byId("file-hide").addEventListener("change", async (e) => {
+          const file = e.target.files[0];
+          const text = byId("search-text").value;
+          if (file) {
+            const readFileAsync = (file) => {
+              return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                  if (typeof reader.result === "string") {
+                    resolve(reader.result);
+                  } else {
+                    resolve(
+                      String.fromCharCode.apply(
+                        null,
+                        new Uint16Array(reader.result)
+                      )
+                    );
+                  }
+                };
+                reader.onerror = reject;
+                reader.readAsText(file);
+              });
+            };
+
+            const dump = await readFileAsync(file);
+
+            log = dump.split("\n");
+
+            setList(text);
+          }
+        });
+
+        byId("search-list-wrapper").addEventListener("scroll", () => {
+          const text = byId("search-text").value;
+          setList(text);
+        });
+
+        byId("search-text").addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            setList(e.target.value);
+          }
+        });
+      });
+    </script>
+  </head>
+
+  <body>
+    <aside id="aside">
+      <div id="search-wrapper">
+        <div id="file-wrapper">
+          <button id="file-button" type="button">파일 선택</button>
+          <input id="file-hide" type="file" value="" />
+        </div>
+        <div id="search-text-wrapper">
+          <input
+            id="search-text"
+            type="text"
+            value=""
+            placeholder="Search ..."
+          />
+        </div>
+      </div>
+      <div id="search-list-wrapper">
+        <ul id="search-list"></ul>
+      </div>
+    </aside>
+    <main id="main"></main>
+  </body>
+</html>
